@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моніторинг Мікроклімату</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #888888;
+            --accent: #ffffff;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --info: #00ddff;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { font-weight: 300; letter-spacing: 2px; margin-bottom: 40px; color: var(--accent); text-align: center; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover { transform: translateY(-5px); }
+
+        .card h3 {
+            margin: 0 0 15px 0; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .value { font-size: 36px; font-weight: bold; margin: 0; }
+
+        #status-card {
+            grid-column: 1 / -1;
+            border-left: 5px solid var(--text-muted);
+            text-align: left; /* Вирівнюємо текст зліва для кращого читання поради */
+            padding-left: 40px;
+        }
+
+        .status-text { font-size: 28px; font-weight: bold; margin: 0 0 10px 0; }
+        .advice-text { font-size: 16px; color: #aaaaaa; margin: 0; font-style: italic; line-height: 1.5; }
+
+        .chart-container {
+            width: 100%; max-width: 1000px; background-color: var(--card-bg);
+            padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ІНТЕЛЕКТУАЛЬНИЙ АНАЛІЗАТОР ПОВІТРЯ</h1>
+
+    <div class="dashboard">
+        <div class="card" id="status-card">
+            <h3>Поточний стан приміщення</h3>
+            <p class="status-text" id="status">Очікування даних...</p>
+            <p class="advice-text" id="advice">Запустіть датчик для отримання рекомендацій.</p>
+        </div>
+        <div class="card">
+            <h3>Пил (PM2.5)</h3>
+            <p class="value"><span id="pm25">--</span> <span style="font-size: 14px; color: #888;">мкг/м³</span></p>
+        </div>
+        <div class="card">
+            <h3>Температура</h3>
+            <p class="value"><span id="temp">--</span> <span style="font-size: 14px; color: #888;">°C</span></p>
+        </div>
+        <div class="card">
+            <h3>Вологість</h3>
+            <p class="value"><span id="hum">--</span> <span style="font-size: 14px; color: #888;">%</span></p>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="airChart"></canvas>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('airChart').getContext('2d');
+        const airChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Концентрація PM2.5 (мкг/м³)',
+                    data: [],
+                    borderColor: '#00ddff',
+                    backgroundColor: 'rgba(0, 221, 255, 0.1)',
+                    borderWidth: 2, pointRadius: 3, fill: true, tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#333333' }, ticks: { color: '#888888' } },
+                    x: { grid: { display: false }, ticks: { color: '#888888' } }
+                },
+                plugins: { legend: { labels: { color: '#e0e0e0' } } }
+            }
+        });
+
+        async function fetchData() {
+            try {
+                const response = await fetch('https://DenysPolitech.pythonanywhere.com/api/data');
+                const result = await response.json();
+
+                if (result.history.length > 0) {
+                    const latestData = result.history[result.history.length - 1];
+
+                    document.getElementById('pm25').innerText = latestData.pm25;
+                    document.getElementById('temp').innerText = latestData.temperature;
+                    document.getElementById('hum').innerText = latestData.humidity;
+
+                    const statusEl = document.getElementById('status');
+                    const adviceEl = document.getElementById('advice');
+                    const statusCard = document.getElementById('status-card');
+
+                    statusEl.innerText = latestData.status;
+                    adviceEl.innerText = "💡 Порада: " + latestData.advice;
+
+                    // Динамічна зміна кольорів залежно від рівня небезпеки
+                    if(latestData.status.includes('ПОЖЕЖА') || latestData.status.includes('сигарети')) {
+                        statusEl.style.color = 'var(--danger)';
+                        statusCard.style.borderLeftColor = 'var(--danger)';
+                    } else if (latestData.status.includes('вейп') || latestData.status.includes('Забруднення')) {
+                        statusEl.style.color = 'var(--warning)'; // Оранжевий/Жовтий
+                        statusCard.style.borderLeftColor = 'var(--warning)';
+                    } else if (latestData.status.includes('Душно') || latestData.status.includes('Помірна')) {
+                        statusEl.style.color = 'var(--info)'; // Блакитний
+                        statusCard.style.borderLeftColor = 'var(--info)';
+                    } else {
+                        statusEl.style.color = '#00ff88'; // Зелений для чистого
+                        statusCard.style.borderLeftColor = '#00ff88';
+                    }
+
+                    const recentHistory = result.history.slice(-20);
+                    airChart.data.labels = recentHistory.map(item => item.timestamp.split(' ')[1]);
+                    airChart.data.datasets[0].data = recentHistory.map(item => item.pm25);
+                    airChart.update();
+                }
+            } catch (error) {
+                console.error("Помилка з'єднання з сервером:", error);
+            }
+        }
+
+        setInterval(fetchData, 2000);
+        fetchData();
+    </script>
+</body>
+</html>
