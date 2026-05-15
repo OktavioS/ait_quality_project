@@ -126,14 +126,19 @@
 
         function formatCustomTime(rawTimestamp) {
             if (!rawTimestamp) return "";
-            const parts = rawTimestamp.split(' ');
-            if (parts.length === 2) {
-                const dateParts = parts[0].split('-');
-                if (dateParts.length === 3) {
-                    return `${dateParts[2]}.${dateParts[1]} ${parts[1]}`;
-                }
-            }
-            return rawTimestamp;
+
+
+            const utcDate = new Date(rawTimestamp.replace(' ', 'T') + 'Z');
+
+            if (isNaN(utcDate.getTime())) return rawTimestamp;
+
+            const day = String(utcDate.getDate()).padStart(2, '0');
+            const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+            const hours = String(utcDate.getHours()).padStart(2, '0');
+            const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+            const seconds = String(utcDate.getSeconds()).padStart(2, '0');
+
+            return `${day}.${month} ${hours}:${minutes}:${seconds}`;
         }
 
         async function fetchData() {
