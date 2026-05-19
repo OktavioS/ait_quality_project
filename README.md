@@ -8,5 +8,5 @@
 * `index.html` — клієнтський веб-інтерфейс (JS, Chart.js, HTML/CSS), розгорнутий на GitHub Pages.
 
 ## Посилання:
-* **Демонстрація сайту (Live):** https://oktavios.github.io/ait_quality_project/
+* **Демонстрація сайту (Live):** https://oktavios.github.io/air_quality_project/
 * **Серверний API:** https://DenysPolitech.pythonanywhere.com/api/data
