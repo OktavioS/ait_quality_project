@@ -15,13 +15,23 @@ DHT dht(DHTPIN, DHTTYPE);
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 3600000;
 
+unsigned long lastReadTime = 0;
+const unsigned long readInterval = 5000;
+
 float lastSentT = -100.0;
 float lastSentH = -100.0;
 float lastSentDust = -100.0;
 
+void localLog(String message) {
+  Serial.print("[");
+  Serial.print(millis() / 1000);
+  Serial.print("s] LOG: ");
+  Serial.println(message);
+}
+
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n--- Запуск РОЗУМНОЇ Системи ---");
+  localLog("Start of smart system");
 
   dht.begin();
   pinMode(SHARP_LED_PIN, OUTPUT);
@@ -29,83 +39,78 @@ void setup() {
 
   WiFiManager wm;
 
-  // Якщо захочеш "забути" збережений пароль, розкоментуй рядок нижче,
-  // проший, потім знову закоментуй і проший ще раз:
-  // wm.resetSettings();
-
-  Serial.println("Шукаю збережені мережі...");
-
+  localLog("Looking for saved network...");
 
   if (!wm.autoConnect("AirMonitor_Setup", "12345678")) {
-    Serial.println("❌ Не вдалося підключитися. Перезавантаження...");
+    localLog("Could not connect. Restart...");
     delay(3000);
     ESP.restart();
   }
 
-  Serial.println("\n✅ Підключено до Wi-Fi!");
-  Serial.print("IP Адреса: ");
-  Serial.println(WiFi.localIP());
+  localLog("Connected to Wi-Fi!");
+  localLog("IP Address: " + WiFi.localIP().toString());
 }
 
 void loop() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  unsigned long currentMillis = millis();
 
-  digitalWrite(SHARP_LED_PIN, LOW);
-  delayMicroseconds(280);
-  int voMeasured = analogRead(SHARP_VO_PIN);
-  delayMicroseconds(40);
-  digitalWrite(SHARP_LED_PIN, HIGH);
-  delayMicroseconds(9680);
+  if (currentMillis - lastReadTime >= readInterval) {
+    lastReadTime = currentMillis;
 
-  float calcVoltage = voMeasured * (3.3 / 4095.0);
-  float dustDensity = (0.17 * calcVoltage - 0.47) * 1000.0;
-  if (dustDensity < 0) dustDensity = 0.0;
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
 
-  if (isnan(h) || isnan(t)) {
-    Serial.println("⚠️ Помилка DHT11!");
-    delay(2000);
-    return;
-  }
+    digitalWrite(SHARP_LED_PIN, LOW);
+    delayMicroseconds(280);
+    int voMeasured = analogRead(SHARP_VO_PIN);
+    delayMicroseconds(40);
+    digitalWrite(SHARP_LED_PIN, HIGH);
 
-  bool tempChanged = abs(t - lastSentT) >= 1.0;     // Зміна на 1 градус
-  bool humChanged = abs(h - lastSentH) >= 5.0;      // Зміна на 5%
-  bool dustChanged = abs(dustDensity - lastSentDust) >= 11.0; // Стрибок пилу на 11 мкг
+    float calcVoltage = voMeasured * (3.3 / 4095.0);
+    float dustDensity = (0.17 * calcVoltage - 0.47) * 1000.0;
+    if (dustDensity < 0) dustDensity = 0.0;
 
-  bool timePassed = (millis() - lastSendTime) >= sendInterval;
-  bool firstRun = (lastSendTime == 0);
+    if (isnan(h) || isnan(t)) {
+      localLog("Error DHT11!");
+      return;
+    }
 
-  if (tempChanged || humChanged || dustChanged || timePassed || firstRun) {
+    bool tempChanged = abs(t - lastSentT) >= 1.0;
+    bool humChanged = abs(h - lastSentH) >= 5.0;
+    bool dustChanged = abs(dustDensity - lastSentDust) >= 11.0;
 
-      if(WiFi.status() == WL_CONNECTED){
-        HTTPClient http;
-        http.begin(serverName);
-        http.addHeader("Content-Type", "application/json");
+    bool timePassed = (currentMillis - lastSendTime) >= sendInterval;
+    bool firstRun = (lastSendTime == 0);
 
-        String jsonPayload = "{\"pm25\":" + String(dustDensity) + ",\"temperature\":" + String(t) + ",\"humidity\":" + String(h) + "}";
+    if (tempChanged || humChanged || dustChanged || timePassed || firstRun) {
 
-        Serial.println("\n-------------------------");
-        if(timePassed || firstRun) Serial.println("⏳ Відправка за розкладом (1 год)");
-        else Serial.println("🚨 УВАГА! Різка зміна клімату! Екстрена відправка!");
+        if(WiFi.status() == WL_CONNECTED){
+          HTTPClient http;
+          http.begin(serverName);
+          http.addHeader("Content-Type", "application/json");
 
-        Serial.print("📤 Дані: "); Serial.println(jsonPayload);
+          String jsonPayload = "{\"pm25\":" + String(dustDensity) + ",\"temperature\":" + String(t) + ",\"humidity\":" + String(h) + "}";
 
-        int httpResponseCode = http.POST(jsonPayload);
+          if(timePassed || firstRun) localLog("Scheduled sending");
+          else localLog("Emergency sending");
 
-        if (httpResponseCode == 200) {
-          Serial.println("✅ Успішно доставлено на сервер!");
-          lastSentT = t;
-          lastSentH = h;
-          lastSentDust = dustDensity;
-          lastSendTime = millis();
+          localLog("Data: " + jsonPayload);
+
+          int httpResponseCode = http.POST(jsonPayload);
+
+          if (httpResponseCode == 200) {
+            localLog("Success delivered on server");
+            lastSentT = t;
+            lastSentH = h;
+            lastSentDust = dustDensity;
+            lastSendTime = currentMillis;
+          } else {
+            localLog("Error HTTP: " + String(httpResponseCode));
+          }
+          http.end();
         } else {
-          Serial.print("❌ Помилка: "); Serial.println(httpResponseCode);
+          localLog("No Wi-Fi connection");
         }
-        http.end();
-      }
-  } else {
-     Serial.print(".");
+    }
   }
-
-  delay(5000);
 }

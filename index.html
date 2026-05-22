@@ -127,7 +127,6 @@
         function formatCustomTime(rawTimestamp) {
             if (!rawTimestamp) return "";
 
-
             const utcDate = new Date(rawTimestamp.replace(' ', 'T') + 'Z');
 
             if (isNaN(utcDate.getTime())) return rawTimestamp;
@@ -158,15 +157,15 @@
                     const statusCard = document.getElementById('status-card');
 
                     statusEl.innerText = latestData.status;
-                    adviceEl.innerText = "💡 Порада: " + latestData.advice;
+                    adviceEl.innerText = "💡 Advice: " + latestData.advice;
 
-                    if(latestData.status.includes('ПОЖЕЖА') || latestData.status.includes('сигарети')) {
+                    if(latestData.status.includes('FIRE') || latestData.status.includes('Smoking')) {
                         statusEl.style.color = 'var(--danger)';
                         statusCard.style.borderLeftColor = 'var(--danger)';
-                    } else if (latestData.status.includes('вейп') || latestData.status.includes('Забруднення')) {
+                    } else if (latestData.status.includes('Vaping') || latestData.status.includes('Dust')) {
                         statusEl.style.color = 'var(--warning)';
                         statusCard.style.borderLeftColor = 'var(--warning)';
-                    } else if (latestData.status.includes('Душно') || latestData.status.includes('Помірна')) {
+                    } else if (latestData.status.includes('Stuffy') || latestData.status.includes('Moderate')) {
                         statusEl.style.color = 'var(--info)';
                         statusCard.style.borderLeftColor = 'var(--info)';
                     } else {
