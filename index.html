@@ -74,24 +74,24 @@
 </head>
 <body>
 
-    <h1>ІНТЕЛЕКТУАЛЬНИЙ АНАЛІЗАТОР ПОВІТРЯ</h1>
+    <h1>INTELLIGENT AIR ANALYZER</h1>
 
     <div class="dashboard">
         <div class="card" id="status-card">
-            <h3>Поточний стан приміщення</h3>
-            <p class="status-text" id="status">Очікування даних...</p>
-            <p class="advice-text" id="advice">Запустіть датчик для отримання рекомендацій.</p>
+            <h3>Current situation in the room</h3>
+            <p class="status-text" id="status">Waiting for data...</p>
+            <p class="advice-text" id="advice">Turn on the device to get an advice.</p>
         </div>
         <div class="card">
-            <h3>Пил (PM2.5)</h3>
-            <p class="value"><span id="pm25">--</span> <span style="font-size: 14px; color: #888;">мкг/м³</span></p>
+            <h3>Dust (PM2.5)</h3>
+            <p class="value"><span id="pm25">--</span> <span style="font-size: 14px; color: #888;">mkg/m³</span></p>
         </div>
         <div class="card">
-            <h3>Температура</h3>
+            <h3>Temperature</h3>
             <p class="value"><span id="temp">--</span> <span style="font-size: 14px; color: #888;">°C</span></p>
         </div>
         <div class="card">
-            <h3>Вологість</h3>
+            <h3>Humidity</h3>
             <p class="value"><span id="hum">--</span> <span style="font-size: 14px; color: #888;">%</span></p>
         </div>
     </div>
@@ -107,7 +107,7 @@
             data: {
                 labels: [],
                 datasets: [{
-                    label: 'Концентрація PM2.5 (мкг/м³)',
+                    label: 'PM2.5 concentration (mkg/m³)',
                     data: [],
                     borderColor: '#00ddff',
                     backgroundColor: 'rgba(0, 221, 255, 0.1)',
@@ -181,7 +181,7 @@
                     airChart.update();
                 }
             } catch (error) {
-                console.error("Помилка з'єднання з сервером:", error);
+                console.error("Server connection error:", error);
             }
         }
 
