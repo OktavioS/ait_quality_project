@@ -10,7 +10,7 @@ const char* serverName = "http://DenysPolitech.pythonanywhere.com/api/data";
 DHT dht(DHTPIN, DHTTYPE);
 
 #define SHARP_LED_PIN 5
-#define SHARP_VO_PIN 2
+#define SHARP_VO_PIN 0
 
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 3600000;
@@ -67,7 +67,7 @@ void loop() {
     digitalWrite(SHARP_LED_PIN, HIGH);
 
     float calcVoltage = voMeasured * (3.3 / 4095.0);
-    float dustDensity = (0.17 * calcVoltage - 0.47) * 1000.0;
+    float dustDensity = 0.172 * (calcVoltage - 2.99) * 1000.0;
     if (dustDensity < 0) dustDensity = 0.0;
 
     if (isnan(h) || isnan(t)) {
