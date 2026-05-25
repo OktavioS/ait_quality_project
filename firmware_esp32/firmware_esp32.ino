@@ -11,12 +11,13 @@ DHT dht(DHTPIN, DHTTYPE);
 
 #define SHARP_LED_PIN 5
 #define SHARP_VO_PIN 2
+#define FAN_PIN 7
 
-unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 3600000;
+const unsigned long FAN_ON_DURATION = 120000;
+const unsigned long FAN_OFF_DURATION = 300000;
 
-unsigned long lastReadTime = 0;
-const unsigned long readInterval = 5000;
+unsigned long stateStartTime = 0;
+bool isFanActiveState = false;
 
 float lastSentT = -100.0;
 float lastSentH = -100.0;
@@ -31,16 +32,20 @@ void localLog(String message) {
 
 void setup() {
   Serial.begin(115200);
-  localLog("Start of smart system");
+  localLog("Start of Advanced State-Machine Air Monitor");
 
   dht.begin();
   pinMode(SHARP_LED_PIN, OUTPUT);
   digitalWrite(SHARP_LED_PIN, HIGH);
 
+  pinMode(FAN_PIN, OUTPUT);
+
+  analogWrite(FAN_PIN, 180);
+  isFanActiveState = true;
+  stateStartTime = millis();
+  localLog("System started: Fan is ON (Purging & Stabilization phase)...");
+
   WiFiManager wm;
-
-  localLog("Looking for saved network...");
-
   if (!wm.autoConnect("AirMonitor_Setup", "12345678")) {
     localLog("Could not connect. Restart...");
     delay(3000);
@@ -48,69 +53,65 @@ void setup() {
   }
 
   localLog("Connected to Wi-Fi!");
-  localLog("IP Address: " + WiFi.localIP().toString());
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  if (currentMillis - lastReadTime >= readInterval) {
-    lastReadTime = currentMillis;
+  if (isFanActiveState) {
+    if (currentMillis - stateStartTime >= FAN_ON_DURATION) {
 
-    float h = dht.readHumidity();
-    float t = dht.readTemperature();
+      float h = dht.readHumidity();
+      float t = dht.readTemperature();
 
-    digitalWrite(SHARP_LED_PIN, LOW);
-    delayMicroseconds(280);
-    int voMeasured = analogRead(SHARP_VO_PIN);
-    delayMicroseconds(40);
-    digitalWrite(SHARP_LED_PIN, HIGH);
+      digitalWrite(SHARP_LED_PIN, LOW);
+      delayMicroseconds(280);
+      int voMeasured = analogRead(SHARP_VO_PIN);
+      delayMicroseconds(40);
+      digitalWrite(SHARP_LED_PIN, HIGH);
 
-    float calcVoltage = voMeasured * (3.3 / 4095.0);
-    float dustDensity = (0.17 * calcVoltage - 0.47) * 1000.0;
-    if (dustDensity < 0) dustDensity = 0.0;
+      float calcVoltage = voMeasured * (3.3 / 4095.0);
+      localLog("End of 2-min cycle. Raw Voltage: " + String(calcVoltage) + "V");
 
-    if (isnan(h) || isnan(t)) {
-      localLog("Error DHT11!");
-      return;
-    }
+      float dustDensity = 0.172 * (calcVoltage - 2.20) * 1000.0;
+      if (dustDensity < 0) dustDensity = 0.0;
 
-    bool tempChanged = abs(t - lastSentT) >= 1.0;
-    bool humChanged = abs(h - lastSentH) >= 5.0;
-    bool dustChanged = abs(dustDensity - lastSentDust) >= 11.0;
+      if (!isnan(h) && !isnan(t)) {
+        localLog("Stable Data -> Temp: " + String(t) + "C, Hum: " + String(h) + "%, Dust: " + String(dustDensity));
 
-    bool timePassed = (currentMillis - lastSendTime) >= sendInterval;
-    bool firstRun = (lastSendTime == 0);
-
-    if (tempChanged || humChanged || dustChanged || timePassed || firstRun) {
-
-        if(WiFi.status() == WL_CONNECTED){
+        if (WiFi.status() == WL_CONNECTED) {
           HTTPClient http;
           http.begin(serverName);
           http.addHeader("Content-Type", "application/json");
 
           String jsonPayload = "{\"pm25\":" + String(dustDensity) + ",\"temperature\":" + String(t) + ",\"humidity\":" + String(h) + "}";
-
-          if(timePassed || firstRun) localLog("Scheduled sending");
-          else localLog("Emergency sending");
-
-          localLog("Data: " + jsonPayload);
-
           int httpResponseCode = http.POST(jsonPayload);
 
           if (httpResponseCode == 200) {
-            localLog("Success delivered on server");
-            lastSentT = t;
-            lastSentH = h;
-            lastSentDust = dustDensity;
-            lastSendTime = currentMillis;
+            localLog("Data successfully uploaded to PythonAnywhere!");
           } else {
-            localLog("Error HTTP: " + String(httpResponseCode));
+            localLog("Server error code: " + String(httpResponseCode));
           }
           http.end();
         } else {
-          localLog("No Wi-Fi connection");
+          localLog("Wi-Fi disconnected, data not sent");
         }
+      } else {
+        localLog("Sensor reading error!");
+      }
+
+      analogWrite(FAN_PIN, 0);
+      isFanActiveState = false;
+      stateStartTime = currentMillis;
+      localLog("Switching to ECO Mode: Fan is OFF. Silent phase for 5 minutes...");
+    }
+  }
+  else {
+    if (currentMillis - stateStartTime >= FAN_OFF_DURATION) {
+      analogWrite(FAN_PIN, 180);
+      isFanActiveState = true;
+      stateStartTime = currentMillis;
+      localLog("ECO Mode finished. Fan turned ON for a new 2-minute stabilization cycle...");
     }
   }
 }
