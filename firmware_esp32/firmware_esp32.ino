@@ -10,7 +10,7 @@ const char* serverName = "http://DenysPolitech.pythonanywhere.com/api/data";
 DHT dht(DHTPIN, DHTTYPE);
 
 #define SHARP_LED_PIN 5
-#define SHARP_VO_PIN 2
+#define SHARP_VO_PIN 0
 #define FAN_PIN 7
 
 const unsigned long FAN_ON_DURATION = 120000;
